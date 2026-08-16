@@ -1,0 +1,198 @@
+# SAP ECC 6.0 Legacy Configuration — Global Bike Inc. (GBI)
+#
+# This is an EXAMPLE legacy configuration based on SAP's own Global Bike Inc.
+# (GBI) training company, used worldwide in SAP University Alliances programs.
+# GBI is a fictional bicycle manufacturer headquartered in Dallas, TX (US) with
+# a subsidiary in Heidelberg, Germany (DE).
+#
+# This file describes a typical ECC 6.0 configuration pattern, not a real
+# production system. It is designed to exercise the analyzer's simplification
+# item matching across multiple SAP modules.
+#
+# Structural elements (company codes, plants, chart of accounts) reflect GBI's
+# publicly documented training setup. Configuration details are representative
+# of common ECC patterns, drawn from practitioner experience.
+
+system:
+  version: "SAP ECC 6.0 EHP8"
+  database: "Oracle 12c"
+  os: "SUSE Linux Enterprise Server 12"
+  unicode: true
+  client: "800"
+
+company_codes:
+  - code: "US00"
+    name: "Global Bike Inc."
+    country: "US"
+    currency: "USD"
+    chart_of_accounts: "CAUS"
+    fiscal_year_variant: "K4"  # Jan-Dec
+  - code: "DE00"
+    name: "Global Bike Germany"
+    country: "DE"
+    currency: "EUR"
+    chart_of_accounts: "CADE"
+    fiscal_year_variant: "K4"
+
+plants:
+  - plant: "DL00"
+    name: "Dallas Plant"
+    company_code: "US00"
+    warehouse_managed: false
+  - plant: "MI00"
+    name: "Miami Distribution"
+    company_code: "US00"
+    warehouse_managed: true
+    wm_active: true           # Classic WM (LE-WM), not EWM
+  - plant: "HD00"
+    name: "Heidelberg Plant"
+    company_code: "DE00"
+    warehouse_managed: true
+    wm_active: true           # Classic WM (LE-WM), not EWM
+
+financial_accounting:
+  general_ledger:
+    type: "classic"           # Not new GL — uses GLT0 totals table
+    document_splitting: false
+    ledger_group: null
+    parallel_currencies:
+      - type: "local"
+        currency: "USD"
+      - type: "group"
+        currency: "EUR"
+  asset_accounting:
+    engine: "classic"         # ANLC/ANLP-based, not new Asset Accounting
+    depreciation_areas:
+      - area: "01"
+        name: "Book Depreciation"
+        posting: "real-time"
+      - area: "15"
+        name: "Tax Depreciation (US GAAP)"
+        posting: "APC-only"   # Posts to APC accounts only, not depreciation
+      - area: "20"
+        name: "Cost Accounting"
+        posting: "statistical"
+    custom_reports:
+      - "ZGBI_ASSET_REGISTER"    # Reads ANLC/ANLP directly
+      - "ZGBI_ASSET_DEPR_PLAN"   # Reads ANLP for planned depreciation
+  accounts_payable:
+    custom_reports:
+      - "ZGBI_VENDOR_AGING"      # Reads BSIK/BSAK directly
+      - "ZGBI_AP_RECONCILIATION" # Reads BSIK for open items
+  accounts_receivable:
+    custom_reports:
+      - "ZGBI_CUSTOMER_AGING"    # Reads BSID/BSAD directly
+    credit_management:
+      type: "classic"           # VKM1/VKM3-based
+      custom_exits:
+        - "LVKMPFZ1"            # Custom credit check user exit
+  master_data:
+    vendor_master: "classic"    # XK01/XK02/XK03 transactions
+    customer_master: "classic"  # XD01/XD02/XD03 transactions
+    business_partner: false     # CVI not configured
+    custom_programs:
+      - "ZGBI_VENDOR_CREATE"    # Batch vendor creation via LFA1/LFB1
+      - "ZGBI_CUST_MASS_UPDATE" # Mass customer update via KNA1/KNB1
+
+controlling:
+  cost_center_accounting:
+    active: true
+    custom_reports:
+      - "ZGBI_CC_VARIANCE"     # Reads COEP/COBK for actual vs plan
+      - "ZGBI_CC_SUMMARY"      # Reads COSS/COSP for totals
+  profitability_analysis:
+    type: "costing-based"      # CE1xxxx/CE2xxxx tables
+    operating_concern: "ZBIK"
+    custom_value_fields:
+      - "ZZREVENUE_LOCAL"
+      - "ZZMARGIN_PCT"
+      - "ZZMKTG_COST"
+
+materials_management:
+  material_master:
+    number_range: "internal"
+    number_length: 18          # Classic 18-character material numbers
+    custom_material_types:
+      - "ZGBI"                 # Custom type for bicycle components
+  inventory:
+    material_ledger: false     # Not activated
+    actual_costing: false
+    custom_reports:
+      - "ZGBI_STOCK_VALUE"     # Reads MBEW for stock valuation
+  purchasing:
+    custom_reports:
+      - "ZGBI_VENDOR_EVAL"     # Vendor evaluation using LFA1 fields
+
+sales_distribution:
+  output_management:
+    type: "classic"            # NACE/NAST-based
+    forms:
+      - name: "ZGBI_INVOICE"
+        type: "SAPscript"      # Not SmartForms or Adobe Forms
+      - name: "ZGBI_DELIVERY"
+        type: "SAPscript"
+      - name: "ZGBI_ORDER_CONF"
+        type: "SmartForm"
+  billing:
+    custom_programs:
+      - "ZGBI_BILLING_POST"   # Custom billing posting, writes to BKPF/BSEG
+
+production_planning:
+  mrp:
+    type: "classic"            # MD01/MD02
+    custom_exits:
+      - "EXIT_SAPLMD01_001"    # Custom MRP user exit
+  production_orders:
+    custom_reports:
+      - "ZGBI_PROD_COST"      # Reads COEP for production order costs
+
+plant_maintenance:
+  maintenance_orders:
+    active: true
+    custom_reports:
+      - "ZGBI_MAINT_COST"     # Reads COEP for maintenance costs
+
+warehouse_management:
+  type: "classic_wm"          # LE-WM, not EWM
+  warehouses:
+    - warehouse: "MI01"
+      plant: "MI00"
+      storage_types: ["001", "002", "003"]
+    - warehouse: "HD01"
+      plant: "HD00"
+      storage_types: ["001", "002"]
+  custom_programs:
+    - "ZGBI_RF_PUTAWAY"       # Custom RF program for putaway
+    - "ZGBI_RF_PICKING"       # Custom RF program for picking
+
+custom_code:
+  total_z_programs: 47
+  total_z_includes: 23
+  total_z_function_modules: 12
+  abap_test_coverage: "none"  # No automated test suite
+  modifications:
+    - object: "SAPMF05A"      # Modified standard FI posting program
+      type: "modification"
+    - object: "MV45AFZZ"      # Sales order user exit include
+      type: "customer_exit"
+
+interfaces:
+  - name: "ZGBI_BANK_STMT"
+    type: "RFC"
+    direction: "inbound"
+    description: "Bank statement import via RFC"
+  - name: "ZGBI_VENDOR_SYNC"
+    type: "BAPI"
+    direction: "outbound"
+    description: "Vendor master sync to external procurement system"
+  - name: "ZGBI_STOCK_FEED"
+    type: "IDoc"
+    direction: "outbound"
+    description: "Inventory position feed to BI system"
+
+user_experience:
+  primary_ui: "SAP GUI"
+  fiori_launchpad: false
+  custom_bsp_apps:
+    - "ZGBI_TIMESHEET"        # Custom BSP for time entry
+    - "ZGBI_INVENTORY"        # Custom BSP for stock overview
