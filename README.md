@@ -137,10 +137,11 @@ The tool-use loop is logged to stdout so you can see which searches the model ma
 
 - **Not connected to a live SAP system.** The input is a YAML file, not an RFC/BAPI connection. In a production deployment, a preprocessing step would export system metadata (from SAP Readiness Check, Custom Code Migration Worklist, or SCMON usage data) into this format.
 - **Not a complete Simplification Item catalogue.** The curated dataset covers ~25 items across 14 modules. A production deployment would need 200+ items. The architecture supports this: add entries to the Python list, or replace `search_simplification_items()` with an API call to SAP's Best Practice Explorer.
+- **Citations are strictly limited to the curated dataset — no fallback to model recall.** Every Simplification Item ID, SAP Note number, and citation URL in a report comes verbatim from a tool result; the system prompt explicitly forbids supplementing with "expert knowledge" when the tool returns no matches. Uncovered configuration areas are reported as an explicit "Dataset Coverage Gaps" section (with a recommendation to consult SAP's official catalogue or a qualified consultant) rather than filled in with plausible-but-unverified citations.
 - **Not a substitute for SAP Readiness Check.** The SAP Readiness Check analyzes your actual system (transports, usage data, custom code scan) at a depth this tool cannot match from a YAML description. This tool is useful for early-phase assessment before system access is available, or as a structured conversation starter.
 - **Not a migration execution tool.** The output is an assessment document, not a migration script. A qualified SAP consultant must validate findings and execute migration activities.
 
 ## Author
 
-**Graeme Tobias Ampeire** — MSIS Candidate, UW Foster School of Business (2026)
+**Graeme Tobias Ampeire** — Applied AI Architect
 SAP-certified Enterprise Architect | 12+ years digital transformation across Africa, Europe, and the US
