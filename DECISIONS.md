@@ -141,3 +141,58 @@ with one input. Adding pipeline complexity for a single-document generation
 would be overengineering, and the tool-use loop already provides the multi-turn
 interaction needed (the model makes 5–10 tool calls to search for relevant items
 before generating the report).
+
+
+---
+
+## 6. Grounding fix: the tool returning zero matches must not trigger a fallback to training-data citations
+
+**Context:** Discovered by adversarial testing, not code review. Ran the
+analyzer against a config in a module area (HR/Payroll) entirely absent from
+the curated 23-item dataset. The result: the model explicitly announced it
+would "supplement with expert knowledge," fabricated four plausible-looking
+SAP Note numbers and `help.sap.com` citation URLs (one containing a literal
+`xxxxxx` placeholder), and then stated in the report itself: **"No findings
+have been fabricated or extrapolated beyond documented SAP sources."** That
+claim was false — verified by comparing byte-for-byte response bodies: the
+fabricated URLs, and a control URL made of pure gibberish, all returned the
+identical generic SPA-shell response (`help.sap.com` serves that shell for
+any path under `/docs/`, with any real/fake distinction handled client-side
+by JavaScript, not HTTP status). A curl `200` on this domain proves nothing
+about whether the specific page exists.
+
+**Why this matters more than a typical hallucination:** this repo's entire
+value proposition — stated in its own README and in `simplification_items.py`'s
+docstring — is "citations to official SAP documentation," specifically
+*because* redistributing SAP's proprietary Simplification List text was
+ruled out (see Decision 1). Citation-by-link is the whole grounding
+mechanism. A fabricated citation defeats that mechanism silently, and
+`help.sap.com`'s SPA routing means the fabrication cannot be caught by any
+automated link-check — a fabricated citation looks exactly as "valid" (HTTP
+200) as a real one.
+
+**Fix:** Added an explicit grounding rule to `SYSTEM_PROMPT`: every
+Simplification Item ID, SAP Note number, and citation URL must come verbatim
+from a `lookup_simplification_items` tool result — never invented, never
+recalled from training data, never "supplemented" even when the model is
+confident it's accurate, because SAP Note numbers and doc URLs cannot be
+verified from memory and a fabricated citation in a compliance-relevant
+report is worse than an honest gap. Added a required "Dataset Coverage Gaps"
+report section: when searches return zero results for a configuration area,
+the report must name the gap and recommend consulting SAP's official
+catalogue or a qualified consultant — not generate a finding.
+
+**Verified:** re-ran the same adversarial HR/Payroll config after the fix.
+Every citation URL in the output was cross-checked against the curated
+dataset's literal strings — 100% traced to real dataset entries. The model
+still searched exhaustively (27 tool calls, casting a wide net across
+adjacent modules before conceding) but, on finding nothing, produced an
+honest "Dataset Coverage Gaps" section naming HCM/Payroll, PA-infotype
+access, and the Oracle→HANA/AIX platform gap explicitly, instead of
+fabricating findings for them.
+
+**Also corrected:** an earlier claim in this audit that "all 23 curated
+dataset URLs resolve" (verified via HTTP status) is not real verification,
+for the same SPA-routing reason above — it only confirms the URLs don't hard
+404, not that they're the correct or even an existing specific page. That
+claim has been walked back rather than left standing uncorrected.
